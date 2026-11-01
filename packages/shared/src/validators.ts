@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+/** Convert Persian and Arabic-Indic numerals to ASCII before validation/storage. */
+export function normalizeDigits(value: string): string {
+  return value.replace(/[۰-۹٠-٩]/g, (digit) => {
+    const code = digit.charCodeAt(0);
+    return String(code >= 0x06f0 && code <= 0x06f9 ? code - 0x06f0 : code - 0x0660);
+  });
+}
+
+const normalizeOptionalDigits = (value: unknown) =>
+  typeof value === "string" ? normalizeDigits(value) : value;
+
+
 /* --------------------------- Iranian identity rules --------------------------- */
 
 export function isValidNationalCode(code: string): boolean {
@@ -17,12 +29,15 @@ export const isValidPhone = (p: string) => /^0\d{9,10}$/.test(p);
 
 /* --------------------------------- Schemas --------------------------------- */
 
-const nationalCode = z
-  .string()
-  .regex(/^\d{10}$/, "کد ملی باید ۱۰ رقم باشد")
-  .refine(isValidNationalCode, "کد ملی معتبر نیست");
+const nationalCode = z.preprocess(
+  normalizeDigits,
+  z.string().regex(/^\d{10}$/, "کد ملی باید ۱۰ رقم باشد").refine(isValidNationalCode, "کد ملی معتبر نیست"),
+);
 
-const mobile = z.string().regex(/^09\d{9}$/, "شماره موبایل معتبر نیست (مثال: 09123456789)");
+const mobile = z.preprocess(
+  normalizeDigits,
+  z.string().regex(/^09\d{9}$/, "شماره موبایل معتبر نیست (مثال: 09123456789)"),
+);
 
 const money = (msg = "مبلغ باید عدد صحیح (تومان) باشد") =>
   z.coerce.number().int(msg).min(0, "مبلغ نمی‌تواند منفی باشد").max(900_000_000_000_000, "مبلغ بیش از حد مجاز است");
@@ -43,8 +58,7 @@ export const customerSchema = z.object({
   nationalCode,
   mobile,
   phone: z
-    .string()
-    .optional()
+    .preprocess(normalizeOptionalDigits, z.string().optional())
     .refine((v) => !v || isValidPhone(v), "شماره تماس دوم معتبر نیست (با پیش‌شماره، مثال: 02112345678)"),
   address: z.string().max(500, "آدرس حداکثر ۵۰۰ حرف").optional().nullable(),
   occupation: z.string().trim().max(120, "شغل حداکثر ۱۲۰ حرف").optional().nullable(),
@@ -58,12 +72,10 @@ export const guarantorSchema = z.object({
   customerId: uuid,
   fullName: z.string().trim().min(3, "نام ضامن حداقل ۳ حرف است").max(120),
   nationalCode: z
-    .string()
-    .optional()
+    .preprocess(normalizeOptionalDigits, z.string().optional())
     .refine((v) => !v || isValidNationalCode(v), "کد ملی ضامن معتبر نیست"),
   mobile: z
-    .string()
-    .optional()
+    .preprocess(normalizeOptionalDigits, z.string().optional())
     .refine((v) => !v || isValidMobile(v), "شماره موبایل ضامن معتبر نیست"),
   relation: z.string().max(60).optional().nullable(),
   address: z.string().max(500).optional().nullable(),
