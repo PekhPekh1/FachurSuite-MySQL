@@ -1,16 +1,15 @@
 import { z } from "zod";
 
 /** Convert Persian and Arabic-Indic numerals to ASCII before validation/storage. */
-export function normalizeDigits(value: string): string {
+export function normalizeDigits(value: unknown): unknown {
+  if (typeof value !== "string") return value;
   return value.replace(/[۰-۹٠-٩]/g, (digit) => {
     const code = digit.charCodeAt(0);
     return String(code >= 0x06f0 && code <= 0x06f9 ? code - 0x06f0 : code - 0x0660);
   });
 }
 
-const normalizeOptionalDigits = (value: unknown) =>
-  typeof value === "string" ? normalizeDigits(value) : value;
-
+const normalizeOptionalDigits = normalizeDigits;
 
 /* --------------------------- Iranian identity rules --------------------------- */
 
