@@ -6,7 +6,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:ensure-utf8mb4": "node scripts/ensure-utf8mb4.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^6.0.2",
