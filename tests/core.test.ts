@@ -15,6 +15,8 @@ describe("Iranian national code validation", () => {
   it("normalizes Persian and Arabic-Indic digits in customer identity fields", () => {
     expect(normalizeDigits("۰۹۱۲۳٤٥٦٧٨٩")).toBe("09123456789");
     const code = validCode("049937089");
+    expect(isValidNationalCode(toFaDigits(code))).toBe(true);
+    expect(isValidMobile(toFaDigits("09121234567"))).toBe(true);
     const parsed = customerSchema.parse({
       firstName: "مرتضی",
       lastName: "قریشی",
