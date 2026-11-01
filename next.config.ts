@@ -10,6 +10,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // The app is mounted by cPanel Passenger at https://fachur.ir/suite.
+  basePath: "/suite",
+  // Build on GitHub Actions; deploy only the traced production runtime.
+  output: "standalone",
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
