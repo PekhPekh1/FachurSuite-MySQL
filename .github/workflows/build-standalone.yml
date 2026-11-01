@@ -1,0 +1,69 @@
+name: Build FachurSuite standalone
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fachursuite-production-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Linux production bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Build-time placeholders only. Real secrets stay on the cPanel server.
+      DATABASE_URL: mysql://build:build@127.0.0.1:3306/build
+      JWT_ACCESS_SECRET: github-actions-build-only-secret-not-used-at-runtime-0123456789
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --include=dev --no-audit --no-fund
+
+      - name: Build Next.js with webpack
+        run: npm run build -- --webpack
+
+      - name: Assemble cPanel standalone release
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .next/standalone/server.js
+          mkdir -p .next/standalone/.next
+          cp -a .next/static .next/standalone/.next/static
+          if [ -d public ]; then
+            cp -a public .next/standalone/public
+          fi
+          mkdir -p release/.next
+          cp app.js release/app.js
+          cp -a .next/standalone release/.next/standalone
+          cd release
+          zip -qr ../fachursuite-cpanel-release.zip app.js .next/standalone
+          cd ..
+          ls -lh fachursuite-cpanel-release.zip
+
+      - name: Upload deployment package
+        uses: actions/upload-artifact@v4
+        with:
+          name: fachursuite-cpanel-release
+          path: fachursuite-cpanel-release.zip
+          if-no-files-found: error
+          retention-days: 14
