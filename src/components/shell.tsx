@@ -114,7 +114,7 @@ export function AppShell({
   const items = navFor(user.role, pendingVerification);
 
   return (
-    <div className="min-h-screen lg:pe-68">
+    <div className="min-h-screen lg:pr-68">
       <aside
         aria-label="منوی اصلی"
         className={cx(
