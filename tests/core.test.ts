@@ -12,6 +12,18 @@ const validCode = (base9: string) => {
 };
 
 describe("Iranian national code validation", () => {
+  it("normalizes Persian and Arabic-Indic digits in customer identity fields", () => {
+    expect(normalizeDigits("۰۹۱۲۳٤٥٦٧٨٩")).toBe("09123456789");
+    const code = validCode("049937089");
+    const parsed = customerSchema.parse({
+      firstName: "مرتضی",
+      lastName: "قریشی",
+      nationalCode: toFaDigits(code),
+      mobile: toFaDigits("09121234567"),
+    });
+    expect(parsed.nationalCode).toBe(code);
+    expect(parsed.mobile).toBe("09121234567");
+  });
   it("normalizes Persian and Arabic-Indic digits", () => {
     expect(normalizeDigits("۰۹۱۲۳٤٥٦٧٨٩")).toBe("09123456789");
   });
