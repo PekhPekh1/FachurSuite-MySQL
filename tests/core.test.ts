@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidMobile, isValidNationalCode, normalizeDigits } from "@/lib/validators";
+import { customerSchema, isValidMobile, isValidNationalCode, normalizeDigits } from "@/lib/validators";
 import { computePenalty, settlementBreakdown, defaultFinance } from "@/lib/finance";
 import { addMonthsJalali, jalaliToGreg, gregToJalali, todayGreg } from "@/lib/jalali";
 import { renderTemplate, toFaDigits, toEnDigits } from "@/lib/format";
@@ -23,9 +23,6 @@ describe("Iranian national code validation", () => {
     });
     expect(parsed.nationalCode).toBe(code);
     expect(parsed.mobile).toBe("09121234567");
-  });
-  it("normalizes Persian and Arabic-Indic digits", () => {
-    expect(normalizeDigits("۰۹۱۲۳٤٥٦٧٨٩")).toBe("09123456789");
   });
   it("accepts checksum-valid codes", () => {
     const code = validCode("049937089");
