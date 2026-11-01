@@ -51,11 +51,12 @@ jobs:
           if [ -d public ]; then
             cp -a public .next/standalone/public
           fi
-          mkdir -p release/.next
+          mkdir -p release/.next release/scripts
           cp app.js release/app.js
           cp -a .next/standalone release/.next/standalone
+          cp scripts/ensure-utf8mb4.mjs release/scripts/ensure-utf8mb4.mjs
           cd release
-          zip -qr ../fachursuite-cpanel-release.zip app.js .next/standalone
+          zip -qr ../fachursuite-cpanel-release.zip app.js .next/standalone scripts/ensure-utf8mb4.mjs
           cd ..
           ls -lh fachursuite-cpanel-release.zip
 
