@@ -38,7 +38,15 @@ try {
     await connection.query("SET FOREIGN_KEY_CHECKS = 1");
   }
 
-  console.log(`Success: database default and ${rows.length} tables now use utf8mb4_unicode_ci.`);
+  const [remaining] = await connection.query(
+    "SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName, CHARACTER_SET_NAME AS characterSet FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND CHARACTER_SET_NAME IS NOT NULL AND CHARACTER_SET_NAME <> 'utf8mb4'",
+    [databaseName],
+  );
+  if (remaining.length > 0) {
+    throw new Error(`Some text columns are still not utf8mb4: ${remaining.map((x) => `${x.tableName}.${x.columnName} (${x.characterSet})`).join(", ")}`);
+  }
+
+  console.log(`Verified: database default and all ${rows.length} tables use utf8mb4_unicode_ci; all character columns use utf8mb4.`);
 } finally {
   await connection.end();
 }
