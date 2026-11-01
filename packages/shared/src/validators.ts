@@ -14,6 +14,9 @@ const normalizeOptionalDigits = normalizeDigits;
 /* --------------------------- Iranian identity rules --------------------------- */
 
 export function isValidNationalCode(code: string): boolean {
+  const normalized = normalizeDigits(code);
+  if (typeof normalized !== "string") return false;
+  code = normalized;
   if (!/^\d{10}$/.test(code)) return false;
   if (/^(\d)\1{9}$/.test(code)) return false;
   const check = Number(code[9]);
@@ -23,8 +26,14 @@ export function isValidNationalCode(code: string): boolean {
   return rem < 2 ? check === rem : check === 11 - rem;
 }
 
-export const isValidMobile = (m: string) => /^09\d{9}$/.test(m);
-export const isValidPhone = (p: string) => /^0\d{9,10}$/.test(p);
+export const isValidMobile = (m: string) => {
+  const normalized = normalizeDigits(m);
+  return typeof normalized === "string" && /^09\d{9}$/.test(normalized);
+};
+export const isValidPhone = (p: string) => {
+  const normalized = normalizeDigits(p);
+  return typeof normalized === "string" && /^0\d{9,10}$/.test(normalized);
+};
 
 /* --------------------------------- Schemas --------------------------------- */
 
