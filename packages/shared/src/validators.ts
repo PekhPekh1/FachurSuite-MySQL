@@ -30,12 +30,12 @@ export const isValidPhone = (p: string) => /^0\d{9,10}$/.test(p);
 /* --------------------------------- Schemas --------------------------------- */
 
 const nationalCode = z.preprocess(
-  normalizeDigits,
+  normalizeOptionalDigits,
   z.string().regex(/^\d{10}$/, "کد ملی باید ۱۰ رقم باشد").refine(isValidNationalCode, "کد ملی معتبر نیست"),
 );
 
 const mobile = z.preprocess(
-  normalizeDigits,
+  normalizeOptionalDigits,
   z.string().regex(/^09\d{9}$/, "شماره موبایل معتبر نیست (مثال: 09123456789)"),
 );
 
