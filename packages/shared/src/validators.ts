@@ -126,11 +126,10 @@ export const paymentCreateSchema = z
     note: z.string().trim().max(300).optional().nullable(),
     /** 16-digit source card; required for customer card-to-card submissions. */
     sourceCardNumber: z
-      .string()
-      .trim()
-      .regex(/^[0-9]{16}$/, "شماره کارت مبدأ باید ۱۶ رقم باشد")
-      .optional()
-      .nullable(),
+      .preprocess(
+        normalizeOptionalDigits,
+        z.string().trim().regex(/^[0-9]{16}$/, "شماره کارت مبدأ باید ۱۶ رقم باشد").optional().nullable(),
+      ),
     receiptDocumentId: uuid.optional().nullable(),
     idempotencyKey: z.string().min(8).max(64),
     settle: z.coerce.boolean().default(false),
@@ -208,14 +207,12 @@ export type StoreSettings = z.infer<typeof storeSettingsSchema>;
 export const bankAccountSchema = z
   .object({
     bankName: z.string().trim().min(2, "نام بانک الزامی است").max(60),
-    cardNumber: z.string().trim().regex(/^[0-9]{16}$/, "شماره کارت باید ۱۶ رقم باشد"),
+    cardNumber: z.preprocess(normalizeDigits, z.string().trim().regex(/^[0-9]{16}$/, "شماره کارت باید ۱۶ رقم باشد")),
     cardHolder: z.string().trim().min(2, "نام صاحب کارت الزامی است").max(120),
-    iban: z
-      .string()
-      .trim()
-      .regex(/^IR[0-9]{24}$/, "شماره شبا معتبر نیست (مثال: IR followed by 24 digits)")
-      .optional()
-      .nullable(),
+    iban: z.preprocess(
+      normalizeOptionalDigits,
+      z.string().trim().regex(/^IR[0-9]{24}$/, "شماره شبا معتبر نیست (مثال: IR followed by 24 digits)").optional().nullable(),
+    ),
     isActive: z.coerce.boolean().default(true),
   })
   .strict();
