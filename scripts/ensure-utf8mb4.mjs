@@ -6,11 +6,8 @@ if (!databaseUrl) {
   throw new Error("DATABASE_URL is required");
 }
 
-const connection = await mysql.createConnection({
-  uri: databaseUrl,
-  charset: "utf8mb4",
-  multipleStatements: false,
-});
+const connection = await mysql.createConnection(databaseUrl);
+await connection.query("SET NAMES utf8mb4");
 
 const quoteIdentifier = (value) => "`" + String(value).replace(/`/g, "``") + "`";
 
