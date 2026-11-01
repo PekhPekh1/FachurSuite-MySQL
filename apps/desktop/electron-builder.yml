@@ -1,0 +1,32 @@
+# electron-builder config for the Windows installer (NSIS). Built on CI
+# (windows-latest) with the signing certificate material provided via secrets.
+appId: com.fachursuite.sales
+productName: FachurSuite
+copyright: "© 2026 FachurSuite"
+
+directories:
+  output: dist-installer
+  buildResources: assets
+
+# Don't publish: installers are uploaded as workflow artifacts, never auto-pushed
+# to an update feed. See apps/desktop/main.cjs.
+publish: null
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: assets/icon.png
+  # Signed with an Authenticode certificate when WINDOWS_CSC_LINK is configured
+  # in CI secrets; unsigned otherwise (suitable for internal testing only).
+
+nsis:
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "FachurSuite"
+  oneClick: false # user chooses install location
+  perMachine: false # per-user install — no UAC required
+  allowToChangeInstallationDirectory: true
+  allowElevation: false
+
+electronVersion: "45.2.1"

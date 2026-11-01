@@ -1,0 +1,41 @@
+{
+  "name": "@installments/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Optional Express API service (reference backend track). The platform runtime serves the app via Next.js; this package is the standalone API shell for local monorepo development.",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "db:validate": "prisma validate",
+    "db:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "jalaali-js": "^1.2.8",
+    "pino": "^9.5.0",
+    "pino-http": "^10.3.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.23",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^22.19.15",
+    "multer": "^2.0.2",
+    "prisma": "6.19.3",
+    "tsx": "^4.19.1",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

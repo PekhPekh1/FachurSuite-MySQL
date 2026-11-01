@@ -1,0 +1,60 @@
+# Build the signed Android APK for the mobile client.
+name: build-apk
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+      - name: Set up JDK 17 (required by Android Gradle plugin)
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Install mobile dependencies
+        working-directory: apps/mobile
+        run: npm ci
+      - name: Prepare Android project
+        working-directory: apps/mobile
+        run: npx cap add android && npx cap sync
+        env:
+          CAP_SERVER_URL: https://${{ secrets.DEPLOY_HOST }}
+      - name: Write signing config from protected secrets
+        run: |
+          mkdir -p ~/.android
+          echo "${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/release.keystore
+          echo "keystore-password=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" > ~/.android/keystore.properties
+          echo "key-password=${{ secrets.ANDROID_KEY_PASSWORD }}" >> ~/.android/keystore.properties
+          echo "key-alias=${{ secrets.ANDROID_KEY_ALIAS }}" >> ~/.android/keystore.properties
+          echo "store-file=${HOME}/.android/release.keystore" >> ~/.android/keystore.properties
+      - name: Build signed release APK
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease
+      - name: Verify artifact exists and is not empty
+        run: |
+          ls -la apps/mobile/android/app/build/outputs/apk/release/
+          test -s apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installment-sales-android-${{ github.ref_name }}
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14

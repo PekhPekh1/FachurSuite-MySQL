@@ -1,0 +1,397 @@
+// Prisma mirror of the live Drizzle schema (src/db/schema.ts) for the API track.
+// Note: in the platform runtime, Drizzle owns the schema (drizzle-kit push).
+// This schema is for standalone API development and must be kept in sync.
+// Monetary fields are PostgreSQL Decimal(numeric(18,2)) per the data spec;
+// DB CHECK constraints live in this track's initial migration SQL (Prisma's
+// schema language cannot express them).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  OPERATOR
+  CUSTOMER
+  @@map("user_role")
+}
+
+enum ContractType {
+  CASH
+  INSTALLMENT
+  @@map("contract_type")
+}
+
+enum ContractStatus {
+  ACTIVE
+  SETTLED
+  CANCELED
+  @@map("contract_status")
+}
+
+enum InstallmentStatus {
+  PENDING
+  RESERVED
+  PAID
+  FORGIVEN
+  @@map("installment_status")
+}
+
+// POS was renamed to CARD_READER in Stage 8 (PostgreSQL 10+ RENAME VALUE).
+enum PaymentMethod {
+  CASH
+  CARD_READER
+  CARD_TO_CARD
+  @@map("payment_method")
+}
+
+enum PaymentStatus {
+  PENDING_VERIFICATION
+  CONFIRMED
+  REJECTED
+  @@map("payment_status")
+}
+
+model Customer {
+  id                   String    @id @default(uuid()) @db.VarChar(36)
+  firstName            String    @map("first_name") @db.VarChar(60)
+  lastName             String    @map("last_name") @db.VarChar(60)
+  fullName             String    @map("full_name") @db.VarChar(120)
+  nationalCode         String    @unique @map("national_code") @db.VarChar(10)
+  mobile               String    @db.VarChar(11)
+  phone                String?   @db.VarChar(11)
+  address              String?
+  occupation           String?   @db.VarChar(120)
+  notes                 String?
+  tags                  Json      @default("[]")
+  isBlacklisted         Boolean   @default(false) @map("is_blacklisted")
+  blacklistReason      String?   @map("blacklist_reason")
+  blacklistedAt         DateTime? @map("blacklisted_at") @db.DateTime(3)
+  blacklistedBy         String?   @db.VarChar(36) @map("blacklisted_by")
+  creditLimit           Decimal   @default(0) @map("credit_limit") @db.Decimal(18, 2)
+  creditScore           Int       @default(500) @map("credit_score")
+  creditScoreUpdatedAt  DateTime  @default(now()) @map("credit_score_updated_at") @db.DateTime(3)
+  isActive              Boolean   @default(true) @map("is_active")
+  deactivatedAt         DateTime? @map("deactivated_at") @db.DateTime(3)
+  deactivatedBy         String?   @db.VarChar(36) @map("deactivated_by")
+  deactivationReason    String?   @map("deactivation_reason")
+  createdBy             String?   @db.VarChar(36) @map("created_by")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime  @default(now()) @map("updated_at") @db.DateTime(3)
+
+  users          User[]
+  guarantors     Guarantor[]
+  contracts      Contract[]
+  payments       Payment[]
+  creditHistory  CustomerCreditHistory[]
+
+  @@index([mobile], map: "customers_mobile_idx")
+  @@index([lastName, firstName], map: "customers_name_idx")
+  @@index([isActive], map: "customers_active_idx")
+  @@index([isBlacklisted], map: "customers_blacklist_idx")
+  @@map("customers")
+}
+
+model CustomerCreditHistory {
+  id         BigInt   @id @default(autoincrement())
+  customerId String   @map("customer_id") @db.VarChar(36)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  oldScore   Int      @map("old_score")
+  newScore   Int      @map("new_score")
+  reason     String   @db.VarChar(120)
+  details    Json?
+  computedBy String?  @map("computed_by") @db.VarChar(36)
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([customerId, createdAt], map: "credit_history_customer_idx")
+  @@map("customer_credit_history")
+}
+
+model User {
+  id                String   @id @default(uuid()) @db.VarChar(36)
+  username          String   @unique @db.VarChar(60)
+  passwordHash      String   @map("password_hash")
+  fullName          String   @map("full_name") @db.VarChar(120)
+  role              UserRole
+  customerId        String?  @db.VarChar(36) @map("customer_id")
+  customer          Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  canReviewPayments Boolean  @default(false) @map("can_review_payments")
+  isActive          Boolean  @default(true) @map("is_active")
+  sessionVersion    Int      @default(0) @map("session_version")
+  createdAt         DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  refreshTokens   RefreshToken[]
+  submittedPayments  Payment[] @relation("PaymentSubmitter")
+  reviewedPayments   Payment[] @relation("PaymentReviewer")
+
+  @@map("users")
+}
+
+model RefreshToken {
+  tokenHash String    @id @map("token_hash") @db.VarChar(128)
+  userId    String    @db.VarChar(36) @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  expiresAt DateTime  @map("expires_at") @db.DateTime(3)
+  revokedAt DateTime? @map("revoked_at") @db.DateTime(3)
+
+  @@index([userId], map: "refresh_tokens_user_idx")
+  @@map("refresh_tokens")
+}
+
+model Guarantor {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  customerId   String   @db.VarChar(36) @map("customer_id")
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  fullName     String   @map("full_name") @db.VarChar(120)
+  nationalCode String?  @map("national_code") @db.VarChar(10)
+  mobile       String?  @db.VarChar(11)
+  relation     String?  @db.VarChar(60)
+  address      String?
+  notes        String?
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.DateTime(3)
+
+  contracts Contract[]
+
+  @@index([customerId], map: "guarantors_customer_idx")
+  @@index([isActive], map: "guarantors_active_idx")
+  @@map("guarantors")
+}
+
+model Document {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  ownerType     String   @map("owner_type") @db.VarChar(12)
+  ownerId       String   @db.VarChar(36) @map("owner_id")
+  category      String   @default("OTHER") @db.VarChar(40)
+  fileName      String   @map("file_name") @db.VarChar(200)
+  storedName    String   @unique @map("stored_name") @db.VarChar(260)
+  mimeType      String   @map("mime_type") @db.VarChar(80)
+  checksumSha256 String  @map("checksum_sha256") @db.VarChar(64)
+  size          Int
+  uploadedBy String?  @db.VarChar(36) @map("uploaded_by")
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@map("documents")
+}
+
+model Contract {
+  id                String         @id @default(uuid()) @db.VarChar(36)
+  contractNo        String         @unique @map("contract_no") @db.VarChar(24)
+  type              ContractType
+  customerId        String         @db.VarChar(36) @map("customer_id")
+  customer          Customer       @relation(fields: [customerId], references: [id])
+  guarantorId       String?        @db.VarChar(36) @map("guarantor_id")
+  guarantor         Guarantor?     @relation(fields: [guarantorId], references: [id], onDelete: SetNull)
+  itemDescription   String         @map("item_description")
+  itemSerialNumber  String?        @map("item_serial_number") @db.VarChar(80)
+  notes             String?
+  cashPrice         Decimal        @map("cash_price") @db.Decimal(18, 2)
+  totalPrice        Decimal        @map("total_price") @db.Decimal(18, 2)
+  downPayment       Decimal        @default(0) @map("down_payment") @db.Decimal(18, 2)
+  installmentCount  Int            @default(0) @map("installment_count")
+  installmentAmount Decimal        @default(0) @map("installment_amount") @db.Decimal(18, 2)
+  discrepancy               Decimal   @default(0) @db.Decimal(18, 2)
+  discrepancyOverride       Boolean   @default(false) @map("discrepancy_override")
+  discrepancyOverrideBy     String?   @map("discrepancy_override_by") @db.VarChar(36)
+  discrepancyOverrideReason String?   @map("discrepancy_override_reason")
+  firstDueDate      DateTime?      @map("first_due_date") @db.Date
+  paymentDay        Int?           @map("payment_day")
+  idempotencyKey    String?        @unique @map("idempotency_key") @db.VarChar(64)
+  status            ContractStatus @default(ACTIVE)
+  cancelReason      String?        @map("cancel_reason")
+  canceledAt        DateTime?      @map("canceled_at") @db.DateTime(3)
+  canceledBy        String?        @db.VarChar(36) @map("canceled_by")
+  createdBy         String?        @db.VarChar(36) @map("created_by")
+  createdAt         DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+
+  installments Installment[]
+  payments     Payment[]
+
+  @@index([customerId], map: "contracts_customer_idx")
+  @@index([status], map: "contracts_status_idx")
+  @@map("contracts")
+}
+
+model Installment {
+  id              String            @id @default(uuid()) @db.VarChar(36)
+  contractId      String            @db.VarChar(36) @map("contract_id")
+  contract        Contract          @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  seq             Int
+  dueDate         DateTime          @map("due_date") @db.Date
+  amount          Decimal           @db.Decimal(18, 2)
+  status          InstallmentStatus @default(PENDING)
+  paidAt          DateTime?         @map("paid_at") @db.DateTime(3)
+  paymentId       String?           @db.VarChar(36) @map("payment_id")
+  penaltyForgiven Boolean           @default(false) @map("penalty_forgiven")
+  forgivenAmount  Decimal           @default(0) @map("forgiven_amount") @db.Decimal(18, 2)
+  forgivenBy      String?           @db.VarChar(36) @map("forgiven_by")
+  forgivenReason  String?           @map("forgiven_reason")
+  forgivenAt      DateTime?         @map("forgiven_at") @db.DateTime(3)
+  originalDueDate     DateTime?     @map("original_due_date") @db.Date
+  dueDateChangedBy    String?       @map("due_date_changed_by") @db.VarChar(36)
+  dueDateChangedAt    DateTime?     @map("due_date_changed_at") @db.DateTime(3)
+  dueDateChangeReason String?       @map("due_date_change_reason")
+  createdAt       DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+
+  paymentLinks PaymentInstallment[]
+
+  @@unique([contractId, seq], map: "installments_contract_seq_uq")
+  @@index([dueDate], map: "installments_due_idx")
+  @@index([status], map: "installments_status_idx")
+  @@map("installments")
+}
+
+model Payment {
+  id                String        @id @default(uuid()) @db.VarChar(36)
+  idempotencyKey    String        @unique @map("idempotency_key") @db.VarChar(64)
+  contractId        String        @db.VarChar(36) @map("contract_id")
+  contract          Contract      @relation(fields: [contractId], references: [id])
+  customerId        String        @db.VarChar(36) @map("customer_id")
+  customer          Customer      @relation(fields: [customerId], references: [id])
+  amount            Decimal       @db.Decimal(18, 2)
+  penaltyAmount     Decimal       @default(0) @map("penalty_amount") @db.Decimal(18, 2)
+  method              PaymentMethod
+  status              PaymentStatus
+  sourceCardNumber    String?     @map("source_card_number") @db.VarChar(19)
+  destinationCardMask String?     @map("destination_card_mask") @db.VarChar(19)
+  referenceNo         String?     @map("reference_no") @db.VarChar(80)
+  note                String?
+  paidAt              DateTime?   @map("paid_at") @db.DateTime(3)
+  isSettlement        Boolean     @default(false) @map("is_settlement")
+  settlementMeta      Json?       @map("settlement_meta")
+  resubmissionOf      String?     @db.VarChar(36) @map("resubmission_of")
+  isResubmittable     Boolean     @default(false) @map("is_resubmittable")
+  submittedBy         String?     @db.VarChar(36) @map("submitted_by")
+  reviewedBy          String?     @db.VarChar(36) @map("reviewed_by")
+  reviewedAt          DateTime?   @map("reviewed_at") @db.DateTime(3)
+  reviewNote          String?     @map("review_note")
+  receiptDocumentId   String?     @db.VarChar(36) @map("receipt_document_id")
+  submittedByUser     User?       @relation("PaymentSubmitter", fields: [submittedBy], references: [id])
+  reviewer           User?       @relation("PaymentReviewer", fields: [reviewedBy], references: [id])
+  installmentLinks   PaymentInstallment[]
+  createdAt           DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([contractId], map: "payments_contract_idx")
+  @@index([customerId], map: "payments_customer_idx")
+  @@index([status], map: "payments_status_idx")
+  @@map("payments")
+}
+
+model PaymentInstallment {
+  paymentId     String      @db.VarChar(36) @map("payment_id")
+  payment       Payment     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  installmentId String      @unique(map: "payment_installments_inst_uq") @db.VarChar(36) @map("installment_id")
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+
+  @@id([paymentId, installmentId])
+  @@map("payment_installments")
+}
+
+model Setting {
+  key       String   @id @db.VarChar(40)
+  value     Json
+  updatedBy String?  @db.VarChar(36) @map("updated_by")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.DateTime(3)
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  userId    String?  @db.VarChar(36) @map("user_id")
+  userName  String?  @map("user_name") @db.VarChar(120)
+  userRole  String?  @map("user_role") @db.VarChar(20)
+  action    String   @db.VarChar(60)
+  entity    String   @db.VarChar(40)
+  entityId  String?  @map("entity_id") @db.VarChar(64)
+  meta      Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([createdAt], map: "audit_created_idx")
+  @@index([entity], map: "audit_entity_idx")
+  @@map("audit_logs")
+}
+
+model SmsLog {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  customerId String?  @db.VarChar(36) @map("customer_id")
+  phone      String   @db.VarChar(20)
+  body       String
+  status     String   @db.VarChar(20)
+  detail     String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([createdAt], map: "sms_created_idx")
+  @@map("sms_logs")
+}
+
+model SmsTemplate {
+  key       String   @id @db.VarChar(60)
+  title     String   @db.VarChar(120)
+  body      String
+  category  String   @default("CUSTOM") @db.VarChar(40) @map("category")
+  isActive  Boolean  @default(true) @map("is_active")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.DateTime(3)
+
+  @@map("sms_templates")
+}
+
+model Holiday {
+  id        BigInt   @id @default(autoincrement())
+  date      DateTime @unique @db.Date
+  title     String   @db.VarChar(120)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([date], map: "holidays_date_idx")
+  @@map("holidays")
+}
+
+model Counter {
+  key   String @id @db.VarChar(40)
+  value BigInt @default(0)
+
+  @@map("counters")
+}
+
+model SmsJob {
+  id            String    @id @default(uuid()) @db.VarChar(36)
+  dedupeKey     String    @unique @map("dedupe_key") @db.VarChar(160)
+  templateKey   String    @map("template_key") @db.VarChar(60)
+  customerId    String?   @db.VarChar(36) @map("customer_id")
+  phone         String    @db.VarChar(20)
+  vars          Json?
+  scheduledFor  DateTime  @map("scheduled_for") @db.DateTime(3)
+  status        String    @default("PENDING") @db.VarChar(20)
+  attempts      Int       @default(0)
+  lastAttemptAt DateTime? @map("last_attempt_at") @db.DateTime(3)
+  lastError     String?   @map("last_error")
+  smsLogId      String?   @db.VarChar(36) @map("sms_log_id")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([status, scheduledFor], map: "sms_jobs_pending_idx")
+  @@index([customerId], map: "sms_jobs_customer_idx")
+  @@map("sms_jobs")
+}
+
+model BackupHistory {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  fileName     String   @map("file_name") @db.VarChar(120)
+  sizeBytes    BigInt   @map("size_bytes")
+  tableCount   Int      @map("table_count")
+  tableCounts  Json?    @map("table_counts")
+  status       String   @default("COMPLETED") @db.VarChar(20)
+  detail       String?
+  takenBy      String?  @db.VarChar(36) @map("taken_by")
+  takenByName  String?  @map("taken_by_name") @db.VarChar(120)
+  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([createdAt], map: "backup_history_created_idx")
+  @@map("backup_history")
+}

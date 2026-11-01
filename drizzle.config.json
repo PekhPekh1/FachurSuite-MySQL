@@ -1,0 +1,7 @@
+{
+  "dialect": "mysql",
+  "schema": "./src/db/schema.ts",
+  "dbCredentials": {
+    "url": "mysql://app:app_password@127.0.0.1:3306/app_db"
+  }
+}

@@ -1,0 +1,101 @@
+# Test matrix: type-check, unit tests, build, and all integration suites.
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least-privilege: workflows never need write access to run tests.
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      SMS_ALLOW_PRIVATE_HOSTS: "1" # integration suites use local mock providers
+      CAP_SERVER_URL: http://localhost:3000 # Capacitor scaffold points at localhost in tests
+      # CI-only test secret; production is injected from the deployment secret store.
+      JWT_ACCESS_SECRET: ci-only-auth-secret-at-least-32-characters-long
+      ACCESS_TOKEN_TTL_SECONDS: "900"
+      REFRESH_TOKEN_TTL_DAYS: "7"
+      API_PORT: "4101"
+      CORS_ORIGIN: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - name: Verify lockfile consistency
+        run: npm ci --dry-run
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Apply schema to test database
+        run: npx drizzle-kit push --force
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      - name: Seed test database
+        run: npx tsx src/db/seed.ts
+      - name: Unit tests
+        run: npx vitest run
+      - name: TypeScript check
+        run: npm exec tsc -- --noEmit
+      - name: Production build
+        run: npm run build
+      - name: Build Express API
+        working-directory: apps/api
+        run: |
+          npm ci
+          npx prisma validate
+          npx prisma generate
+          npm run typecheck
+          npm run build
+      - name: Authentication integration matrix
+        run: bash apps/api/tests/auth.integration.sh
+      - name: Customer integration matrix
+        run: bash apps/api/tests/customers.integration.sh
+      - name: Contract integration matrix
+        run: bash apps/api/tests/contracts.integration.sh
+      - name: Installment lifecycle integration matrix
+        run: bash apps/api/tests/installments.integration.sh
+      - name: Payments integration matrix
+        run: bash apps/api/tests/payments.integration.sh
+      - name: Customer portal integration matrix
+        run: bash apps/api/tests/portal.integration.sh
+      - name: Start web app for report verification
+        run: |
+          npx drizzle-kit push --force
+          npx tsx src/db/seed.ts
+          npm run start &
+          for _ in $(seq 1 60); do curl -fsS --max-time 2 http://127.0.0.1:3000/api/health >/dev/null 2>&1 && break; sleep 1; done
+      - name: Reports integration matrix
+        run: bash apps/api/tests/reports.integration.sh
+      - name: SMS integration matrix
+        run: bash apps/api/tests/sms.integration.sh
+      - name: Admin settings integration matrix
+        run: bash apps/api/tests/admin.integration.sh
+      - name: Complete frontend integration matrix
+        run: bash apps/api/tests/frontend.integration.sh
+
+      - name: Packaging verification matrix
+        run: bash apps/api/tests/packaging.integration.sh

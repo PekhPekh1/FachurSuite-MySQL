@@ -1,0 +1,7 @@
+# pnpm workspace definition (Stage 2).
+# The hosted build platform installs the root app with npm; the workspace file
+# enables the full monorepo flow for local development (pnpm install links
+# @installments/shared into apps/* and packages/* automatically).
+packages:
+  - "apps/*"
+  - "packages/*"

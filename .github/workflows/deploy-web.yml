@@ -1,0 +1,48 @@
+# Deploy the web application to the production host.
+name: deploy-web
+
+on:
+  push:
+    branches: [main]
+
+# Least-privilege. Deployment secrets are used only by the SSH step.
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-web-main
+  cancel-in-progress: false
+
+jobs:
+  # Never deploy code that has not passed the full test matrix first.
+  test:
+    uses: ./.github/workflows/test.yml
+    permissions:
+      contents: read
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Require a manual approval gate (GitHub Environment "production") before any
+    # production change — schema migrations and process restarts cannot be
+    # triggered automatically without an authorised reviewer.
+    environment: production
+
+    steps:
+      - name: Deploy to production over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          # The script is deployed inside the repo (deploy/deploy.sh) so the
+          # exact steps are versioned, reviewable, and identical in CI and on
+          # the server.
+          script: /opt/installment-sales/deploy/deploy.sh
+
+      - name: Post-deploy smoke test
+        run: |
+          curl -fsS --max-time 20 https://${{ secrets.DEPLOY_HOST }}/api/health | grep '"ok":true'

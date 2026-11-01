@@ -1,0 +1,47 @@
+# Build the Windows installer for the desktop client.
+name: build-exe
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read # artifacts are uploaded, not written to the repo
+
+concurrency:
+  group: build-exe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Validate desktop configuration
+        working-directory: apps/desktop
+        run: |
+          node --check main.cjs
+          node --check preload.cjs
+      - name: Build Windows installer (NSIS)
+        working-directory: apps/desktop
+        env:
+          DESKTOP_BACKEND_URL: https://${{ secrets.DEPLOY_HOST }}
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+        run: npm run build:exe
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installment-sales-windows-${{ github.ref_name }}
+          path: apps/desktop/dist-installer/*.exe
+          if-no-files-found: error
+          retention-days: 14

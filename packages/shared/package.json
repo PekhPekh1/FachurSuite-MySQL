@@ -1,0 +1,24 @@
+{
+  "name": "@installments/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared TypeScript domain layer: Zod schemas, financial math (integer Toman), Jalali calendar, Persian formatting, palette registry.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "jalaali-js": "^1.2.6",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

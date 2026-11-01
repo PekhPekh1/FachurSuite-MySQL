@@ -1,0 +1,32 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+apps/api/.env
+
+# Node
+node_modules/
+dist/
+out/
+.next/
+coverage/
+
+# App data (uploaded customer documents)
+uploads/
+
+# Build artifacts
+*.tgz
+dist-desktop/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Vitest / caches
+.turbo/
+.cache/
